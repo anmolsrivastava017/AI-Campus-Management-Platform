@@ -61,14 +61,14 @@ export async function GET() {
       },
     });
 
-    const formattedStudents = students.map((student) => ({
-      id: student.id,
+const formattedStudents = students.map(
+  (student: typeof students[number]) => ({      id: student.id,
       name: student.name,
       email: student.email,
       status: "Active",
       courses: student.enrollments.map(
-        (enrollment) => enrollment.course
-      ),
+(enrollment: typeof student.enrollments[number]) =>
+  enrollment.course      ),
     }));
 
     return NextResponse.json({

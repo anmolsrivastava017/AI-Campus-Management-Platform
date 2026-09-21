@@ -34,8 +34,7 @@ export async function GET() {
         },
       });
 
-      const formatted = assignments.map((assignment) => {
-  const submission = assignment.submissions[0];
+const formatted = assignments.map((assignment: typeof assignments[number]) => {  const submission = assignment.submissions[0];
 
   let status = submission?.status ?? "PENDING";
 

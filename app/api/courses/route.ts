@@ -130,8 +130,8 @@ export async function GET() {
       },
     });
 
-    const coursesWithEnrollmentStatus = courses.map((course) => ({
-      ...course,
+const coursesWithEnrollmentStatus = courses.map(
+  (course: typeof courses[number]) => ({      ...course,
       isEnrolled: course.enrollments.length > 0,
       enrollments: undefined,
     }));

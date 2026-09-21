@@ -107,15 +107,11 @@ export async function POST(request: Request) {
       LIMIT 5;
     `;
 
-    // ----------------------------------------
-    // 3. Build context from retrieved chunks
-    // ----------------------------------------
-
     const context = ragChunks
       .map(
-        (chunk, index) =>
-          `[Context ${index + 1}]\n${chunk.content}`
-      )
+  (chunk: { content: string; similarity: number }, index: number) =>
+    `[Context ${index + 1}]\n${chunk.content}`
+)
       .join("\n\n");
 
     const ragPrompt = `

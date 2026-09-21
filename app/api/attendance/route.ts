@@ -126,12 +126,11 @@ export async function GET() {
       },
     });
 
-    const attendanceData = enrollments.map((enrollment) => {
-      const totalClasses = enrollment.attendance.length;
+const attendanceData = enrollments.map(
+  (enrollment: typeof enrollments[number]) => {      const totalClasses = enrollment.attendance.length;
 
       const attendedClasses = enrollment.attendance.filter(
-        (record) => record.present
-      ).length;
+(record: typeof enrollment.attendance[number]) => record.present      ).length;
 
       const percentage =
         totalClasses === 0

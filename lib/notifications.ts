@@ -66,8 +66,9 @@ export async function getCourseStudentIds(courseId: number) {
     },
   });
 
-  return enrollments.map((enrollment) => enrollment.studentId);
-}
+return enrollments.map(
+  (enrollment: typeof enrollments[number]) => enrollment.studentId
+);}
 
 export async function getAllStudentIds() {
   const students = await prisma.user.findMany({
@@ -79,5 +80,6 @@ export async function getAllStudentIds() {
     },
   });
 
-  return students.map((student) => student.id);
+return students.map(
+  (student: typeof students[number]) => student.id);
 }

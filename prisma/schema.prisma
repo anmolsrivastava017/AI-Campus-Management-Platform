@@ -1,0 +1,327 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+enum Role {
+  STUDENT
+  FACULTY
+}
+
+enum SubmissionStatus {
+  PENDING
+  SUBMITTED
+  LATE
+  GRADED
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ASSIGNED
+  RESOLVED
+}
+
+enum NotificationType {
+  ANNOUNCEMENT
+  ASSIGNMENT
+  ATTENDANCE
+  COMPLAINT
+  EXAM
+  RESULT
+  MESSAGE
+  GENERAL
+}
+
+enum MessageType {
+  TEXT
+  FILE
+}
+
+enum MaterialType {
+  PDF
+  DOCUMENT
+  VIDEO
+  LINK
+  OTHER
+}
+
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Faculty
+  courses Course[] @relation("FacultyCourses")
+
+  // Student
+  enrollments Enrollment[] @relation("StudentEnrollments")
+
+  // Assignments
+  submissions Submission[]
+
+  // Complaints
+  complaints         Complaint[] @relation("StudentComplaints")
+  assignedComplaints Complaint[] @relation("FacultyComplaints")
+
+  // Announcements
+  announcements Announcement[] @relation("FacultyAnnouncements")
+
+  // Study materials
+  uploadedMaterials StudyMaterial[] @relation("FacultyMaterials")
+
+  // Exams
+  createdExams Exam[]
+
+  // Results
+  results Result[] @relation("StudentResults")
+  publishedResults Result[] @relation("FacultyResults")
+
+  // Notifications
+  notifications Notification[]
+
+  // Chat
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  // RAG
+  ragDocuments RAGDocument[] @relation("FacultyRAGDocuments")
+}
+
+
+model Course {
+  id          Int      @id @default(autoincrement())
+  name        String
+  code        String   @unique
+  description String?
+  facultyId   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  faculty       User           @relation("FacultyCourses", fields: [facultyId], references: [id])
+  enrollments   Enrollment[]
+  assignments   Assignment[]
+  materials     StudyMaterial[]
+  exams         Exam[]
+  results       Result[]
+  announcements Announcement[]
+  ragDocuments  RAGDocument[]
+}
+
+
+model Enrollment {
+  id        Int      @id @default(autoincrement())
+  studentId Int
+  courseId  Int
+  createdAt DateTime @default(now())
+
+  student    User         @relation("StudentEnrollments", fields: [studentId], references: [id])
+  course     Course       @relation(fields: [courseId], references: [id])
+  attendance Attendance[]
+
+  @@unique([studentId, courseId])
+}
+
+
+model Attendance {
+  id           Int      @id @default(autoincrement())
+  enrollmentId Int
+  date         DateTime @default(now())
+  present      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  @@unique([enrollmentId, date])
+}
+
+
+model Assignment {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  dueDate     DateTime
+  courseId    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course      Course      @relation(fields: [courseId], references: [id])
+  submissions Submission[]
+}
+
+
+model Submission {
+  id           Int              @id @default(autoincrement())
+  assignmentId Int
+  studentId    Int
+  content      String?
+  submittedAt  DateTime         @default(now())
+  status       SubmissionStatus @default(SUBMITTED)
+  grade        Float?
+  feedback     String?
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+  student    User       @relation(fields: [studentId], references: [id])
+
+  @@unique([assignmentId, studentId])
+}
+
+
+
+model Complaint {
+  id          Int             @id @default(autoincrement())
+  title       String
+  description String
+  status      ComplaintStatus @default(SUBMITTED)
+  studentId   Int
+  facultyId   Int?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  student User  @relation("StudentComplaints", fields: [studentId], references: [id])
+  faculty User? @relation("FacultyComplaints", fields: [facultyId], references: [id])
+}
+
+
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  courseId  Int?
+  facultyId Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course? @relation(fields: [courseId], references: [id])
+  faculty User    @relation("FacultyAnnouncements", fields: [facultyId], references: [id])
+}
+
+
+model StudyMaterial {
+  id          Int          @id @default(autoincrement())
+  title       String
+  description String?
+  url         String
+  type        MaterialType @default(DOCUMENT)
+  courseId    Int
+  facultyId   Int
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  course  Course @relation(fields: [courseId], references: [id])
+  faculty User   @relation("FacultyMaterials", fields: [facultyId], references: [id])
+}
+
+
+model Exam {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  date        DateTime
+  startTime   String?
+  endTime     String?
+  room        String?
+  courseId    Int
+  createdById Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course   Course @relation(fields: [courseId], references: [id])
+  createdBy User  @relation(fields: [createdById], references: [id])
+  results  Result[]
+}
+
+
+model Result {
+  id          Int      @id @default(autoincrement())
+  studentId   Int
+  courseId    Int
+  examId      Int?
+  marks       Float
+  maxMarks    Float
+  grade       String?
+  remarks     String?
+  published   Boolean  @default(false)
+  publishedBy Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student     User  @relation("StudentResults", fields: [studentId], references: [id])
+  course      Course @relation(fields: [courseId], references: [id])
+  exam        Exam? @relation(fields: [examId], references: [id])
+  publisher   User? @relation("FacultyResults", fields: [publishedBy], references: [id])
+
+  @@unique([studentId, courseId, examId])
+}
+
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  type      NotificationType @default(GENERAL)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+
+model Message {
+  id         Int         @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  content    String?
+  type       MessageType @default(TEXT)
+  fileUrl    String?
+  createdAt  DateTime    @default(now())
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  @@index([senderId, receiverId])
+  @@index([createdAt])
+}
+
+
+model RAGDocument {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  fileUrl     String
+  courseId    Int?
+  facultyId   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course  Course? @relation(fields: [courseId], references: [id])
+  faculty User    @relation("FacultyRAGDocuments", fields: [facultyId], references: [id])
+  chunks  RAGChunk[]
+}
+
+
+model RAGChunk {
+  id         Int      @id @default(autoincrement())
+  documentId Int
+  content    String
+  chunkIndex Int
+  vectorId   String?
+  createdAt  DateTime @default(now())
+
+  document RAGDocument @relation(fields: [documentId], references: [id])
+
+  @@index([documentId])
+  @@index([vectorId])
+}

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import qdrant from "@/lib/qdrant";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { extractText, getDocumentProxy } from "unpdf";
 import { generateEmbedding } from "@/lib/embeddings";
 
 export const runtime = "nodejs";
+
+const COLLECTION_NAME = "ai_campus_documents";
 
 export async function POST(request: Request) {
   try {
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
       mergePages: true,
     });
 
-   const extractedText = text.trim();
+    const extractedText = text.trim();
 
     if (!extractedText) {
       return NextResponse.json(
@@ -78,30 +81,49 @@ export async function POST(request: Request) {
         },
       },
     });
-    await prisma.rAGChunk.createMany({
-  data: chunks.map((chunk, index) => ({
-    documentId: document.id,
-    content: chunk.pageContent,
-    chunkIndex: index,
-  })),
-});
 
-   for (let index = 0; index < chunks.length; index++) {
-  const chunk = chunks[index];
+    const createdChunks = await prisma.rAGChunk.createManyAndReturn({
+      data: chunks.map((chunk, index) => ({
+        documentId: document.id,
+        content: chunk.pageContent,
+        chunkIndex: index,
+      })),
+    });
 
-  const embedding = await generateEmbedding(
-    chunk.pageContent
-  );
+    const points = [];
 
-  const vectorString = `[${embedding.join(",")}]`;
+    for (const chunk of createdChunks) {
+      const embedding = await generateEmbedding(chunk.content);
 
-  await prisma.$executeRaw`
-    UPDATE "RAGChunk"
-    SET embedding = ${vectorString}::vector
-    WHERE "documentId" = ${document.id}
-      AND "chunkIndex" = ${index};
-  `;
-}
+      points.push({
+        id: chunk.id,
+        vector: embedding,
+        payload: {
+          chunkId: chunk.id,
+          documentId: document.id,
+          content: chunk.content,
+          chunkIndex: chunk.chunkIndex,
+          title: file.name,
+        },
+      });
+    }
+
+    await qdrant.upsert(COLLECTION_NAME, {
+      points,
+    });
+
+    await prisma.$transaction(
+      createdChunks.map((chunk) =>
+        prisma.rAGChunk.update({
+          where: {
+            id: chunk.id,
+          },
+          data: {
+            vectorId: String(chunk.id),
+          },
+        })
+      )
+    );
 
     return NextResponse.json(
       {
@@ -110,6 +132,7 @@ export async function POST(request: Request) {
         fileName: file.name,
         pageCount: totalPages,
         chunkCount: chunks.length,
+        vectorCount: points.length,
       },
       { status: 201 }
     );

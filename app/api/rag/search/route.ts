@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
 import { getAuthUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import qdrant from "@/lib/qdrant";
+import { generateEmbedding } from "@/lib/embeddings";
 
 export const runtime = "nodejs";
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+const COLLECTION_NAME = "ai_campus_documents";
 
 export async function POST(request: Request) {
   try {
@@ -29,47 +27,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await ai.models.embedContent({
-      model: "gemini-embedding-001",
-      contents: question.trim(),
-      config: {
-        outputDimensionality: 768,
-      },
+    const embedding = await generateEmbedding(question.trim());
+
+    const searchResult = await qdrant.query(COLLECTION_NAME, {
+      query: embedding,
+      limit: 5,
+      with_payload: true,
     });
 
-    const embedding = result.embeddings?.[0]?.values;
-
-    if (!embedding) {
-      return NextResponse.json(
-        { message: "Failed to generate question embedding" },
-        { status: 500 }
-      );
-    }
-
-    const vectorString = `[${embedding.join(",")}]`;
-
-    const chunks = await prisma.$queryRaw<
-      {
-        id: number;
-        content: string;
-        documentId: number;
-        similarity: number;
-      }[]
-    >`
-      SELECT
-        id,
-        content,
-        "documentId",
-        1 - (embedding <=> ${vectorString}::vector) AS similarity
-      FROM "RAGChunk"
-      WHERE embedding IS NOT NULL
-      ORDER BY embedding <=> ${vectorString}::vector
-      LIMIT 5;
-    `;
+    const results = searchResult.points.map((point) => ({
+      id: point.id,
+      content: point.payload?.content,
+      documentId: point.payload?.documentId,
+      chunkIndex: point.payload?.chunkIndex,
+      title: point.payload?.title,
+      similarity: point.score,
+    }));
 
     return NextResponse.json({
       question: question.trim(),
-      results: chunks,
+      results,
     });
   } catch (error) {
     console.error("RAG search error:", error);

@@ -31,7 +31,6 @@ async function generateWithRetry(
         `Gemini ${model} attempt ${attempt} failed:`,
         error
       );
-
       if (attempt < attempts) {
         await new Promise((resolve) =>
           setTimeout(resolve, 1000)
@@ -39,7 +38,6 @@ async function generateWithRetry(
       }
     }
   }
-
   return null;
 }
 
